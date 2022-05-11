@@ -31,6 +31,8 @@ import cz.metacentrum.perun.core.bl.PerunBl;
 import cz.metacentrum.perun.core.impl.PerunLocksUtils;
 import cz.metacentrum.perun.core.impl.Utils;
 import cz.metacentrum.perun.core.implApi.ConsentsManagerImplApi;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Comparator;
 import java.util.HashSet;
@@ -49,6 +51,8 @@ import static java.util.stream.Collectors.toMap;
  * @author Radoslav Čerhák <r.cerhak@gmail.com>
  */
 public class ConsentsManagerBlImpl implements ConsentsManagerBl {
+
+	private final static Logger log = LoggerFactory.getLogger(ConsentsManagerBlImpl.class);
 
 	private final ConsentsManagerImplApi consentsManagerImpl;
 	private PerunBl perunBl;
@@ -282,6 +286,7 @@ public class ConsentsManagerBlImpl implements ConsentsManagerBl {
 			return members;
 		}
 
+		log.info("[BL   ] ::: Service ({}) will have these members checked for consents: {}", service.getId(), members);
 		ConsentHub consentHub;
 		try {
 			consentHub = this.getConsentHubByFacility(sess, facility.getId());
@@ -333,6 +338,7 @@ public class ConsentsManagerBlImpl implements ConsentsManagerBl {
 			} catch (ConsentExistsException | ConsentHubNotExistsException | UserNotExistsException e) {
 				throw new InternalErrorException(e);
 			}
+			log.info("[BL   ] ::: Member ({}, User: {}) had no consent at all, new was created.", member.getId(), member.getUserId());
 			return false;
 		}
 		Consent grantedConsent = usersConsents.get(ConsentStatus.GRANTED);
@@ -340,8 +346,10 @@ public class ConsentsManagerBlImpl implements ConsentsManagerBl {
 		Consent revokedConsent = usersConsents.get(ConsentStatus.REVOKED);
 
 		if (grantedConsent != null && grantedConsent.getAttributes().containsAll(requiredAttributes)) {
+			log.info("[BL   ] ::: Member ({}, User: {}) has valid consent.", member.getId(), member.getUserId());
 			return true;
 		} else if (revokedConsent != null && revokedConsent.getAttributes().containsAll(requiredAttributes)) {
+			log.info("[BL   ] ::: Member ({}, User: {}) has revoked consent.", member.getId(), member.getUserId());
 			return false;
 		} else if (unsignedConsent == null || !unsignedConsent.getAttributes().containsAll(requiredAttributes)) {
 			try {
@@ -349,9 +357,11 @@ public class ConsentsManagerBlImpl implements ConsentsManagerBl {
 			} catch (ConsentExistsException | ConsentHubNotExistsException | UserNotExistsException e) {
 				throw new InternalErrorException(e);
 			}
+			log.info("[BL   ] ::: Member ({}, User: {}) has new unsigned consent created.", member.getId(), member.getUserId());
 			return false;
 		}
 
+		log.info("[BL   ] ::: Member ({}, User: {}) has unsigned consent.", member.getId(), member.getUserId());
 		return false;
 	}
 
@@ -370,11 +380,13 @@ public class ConsentsManagerBlImpl implements ConsentsManagerBl {
 
 		for (Facility facility : facilities) {
 			facilityAssignedServices = getPerunBl().getServicesManagerBl().getAssignedServices(sess, facility);
+			log.info("[BL   ] ::: Facility ({}) has these services: {}", facility.getId(), facilityAssignedServices);
 
 			for (Service service : facilityAssignedServices) {
 				List<Member> members = service.isUseExpiredMembers()
 					? getPerunBl().getFacilitiesManagerBl().getAllowedMembers(sess, facility, service)
 					: getPerunBl().getFacilitiesManagerBl().getAllowedMembersNotExpiredInGroups(sess, facility, service);
+				log.info("[BL   ] ::: Service ({}) have these members assigned: {}", service.getId(), members);
 
 				members.removeIf(member -> processedUsers.contains(member.getUserId()));
 				processedUsers.addAll(members.stream().map(Member::getUserId).collect(Collectors.toList()));
@@ -392,6 +404,7 @@ public class ConsentsManagerBlImpl implements ConsentsManagerBl {
 		}
 
 		List<ConsentHub> consentHubs = getConsentsManagerImpl().getConsentHubsByService(sess, service.getId());
+		log.info("[BL   ] ::: Consent hubs for provided service: {}", consentHubs);
 		consentHubs.sort(Comparator.comparingInt(PerunBean::getId));
 		for (ConsentHub consentHub : consentHubs) {
 			evaluateConsents(sess, consentHub);

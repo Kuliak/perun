@@ -20,6 +20,8 @@ import cz.metacentrum.perun.core.api.exceptions.UserNotExistsException;
 import cz.metacentrum.perun.core.bl.ConsentsManagerBl;
 import cz.metacentrum.perun.core.bl.PerunBl;
 import cz.metacentrum.perun.core.impl.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
@@ -29,6 +31,8 @@ import java.util.List;
  * @author Radoslav Čerhák <r.cerhak@gmail.com>
  */
 public class ConsentsManagerEntry implements ConsentsManager {
+
+	private final static Logger log = LoggerFactory.getLogger(ConsentsManagerEntry.class);
 
 	private ConsentsManagerBl consentsManagerBl;
 	private PerunBl perunBl;
@@ -327,6 +331,8 @@ public class ConsentsManagerEntry implements ConsentsManager {
 
 	@Override
 	public void evaluateConsents(PerunSession sess, ConsentHub consentHub) throws PrivilegeException {
+		log.info("[ENTRY] ::: Evaluating consents for consent hub: {}", consentHub);
+
 		Utils.notNull(sess, "sess");
 
 		// Authorization
@@ -334,10 +340,12 @@ public class ConsentsManagerEntry implements ConsentsManager {
 			throw new PrivilegeException(sess, "evaluateConsents");
 		}
 		consentsManagerBl.evaluateConsents(sess, consentHub);
+		log.info("[ENTRY] ::: Consent evaluation completed for consent hub: {}", consentHub);
 	}
 
 	@Override
 	public void evaluateConsents(PerunSession sess, Service service) throws PrivilegeException {
+		log.info("[ENTRY] ::: Evaluating consents for service: {}", service);
 		Utils.notNull(sess, "sess");
 
 		// Authorization
@@ -345,6 +353,7 @@ public class ConsentsManagerEntry implements ConsentsManager {
 			throw new PrivilegeException(sess, "evaluateConsents");
 		}
 		consentsManagerBl.evaluateConsents(sess, service);
+		log.info("[ENTRY] ::: Evaluating consents for service: {}", service);
 	}
 
 }
