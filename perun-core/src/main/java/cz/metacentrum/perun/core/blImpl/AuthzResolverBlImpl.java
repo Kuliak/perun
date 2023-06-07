@@ -1653,11 +1653,13 @@ public class AuthzResolverBlImpl implements AuthzResolverBl {
 	 */
 	public static boolean isMfaAuthorizedForAttribute(PerunSession sess, AttributeDefinition attrDef, AttributeAction actionType, List<Object> objects) {
 		if (!BeansUtils.getCoreConfig().isEnforceMfa()) {
+			if (actionType.equals(AttributeAction.WRITE)) { throw new InternalErrorException("MFA not enforced"); }
 			return true;
 		}
 
 		try {
 			if (hasMFASkippableRole(sess)) {
+				if (actionType.equals(AttributeAction.WRITE)) {  throw new InternalErrorException("MFA skippable role detected in session."); }
 				return true;
 			}
 		} catch (RoleManagementRulesNotExistsException e) {
@@ -1665,14 +1667,39 @@ public class AuthzResolverBlImpl implements AuthzResolverBl {
 		}
 
 		if (!((PerunBl) sess.getPerun()).getAttributesManagerBl().isAttributeActionCritical(sess, attrDef, actionType)) {
+			if (actionType.equals(AttributeAction.WRITE)) {  throw new InternalErrorException("Attribute action is not critical..."); }
 			return true;
 		}
 
 		boolean principalMfa = sess.getPerunPrincipal().getRoles().hasRole(Role.MFA);
 		if (attrDef.getNamespace().startsWith(AttributesManager.NS_ENTITYLESS_ATTR)) {
+			if (actionType.equals(AttributeAction.WRITE)) {
+				if (principalMfa) {
+					throw new InternalErrorException("namespace (entityless attr) -> PrincipalMFA is TRUE");
+				}
+
+				if (updatePrincipalMfa(sess)) {
+					throw new InternalErrorException("namespace (entityless attr) -> updatePrincipalMfa returned TRUE");
+				}
+				throw new InternalErrorException("namespace (entityless attr) -> updatePrincipalMfa returned FALSE");
+			}
 			return principalMfa || updatePrincipalMfa(sess);
 		}
 
+		if (actionType.equals(AttributeAction.WRITE)) {
+			if (principalMfa) {
+				throw new InternalErrorException("PrincipalMFA is TRUE");
+			}
+
+			if (!isAnyObjectMfaCritical(sess, objects)) {
+				throw new InternalErrorException("No object critical");
+			}
+
+			if (updatePrincipalMfa(sess)) {
+				throw new InternalErrorException("updatePrincipalMfa returned TRUE");
+			}
+			throw new InternalErrorException("updatePrincipalMfa returned FALSE");
+		}
 		return principalMfa || !isAnyObjectMfaCritical(sess, objects) || updatePrincipalMfa(sess);
 
 	}
